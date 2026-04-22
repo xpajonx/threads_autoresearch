@@ -23,7 +23,7 @@ env:
   BUFFER_PROFILE_ID: ${{ secrets.BUFFER_PROFILE_ID }}
   BUFFER_ORG_ID: ${{ secrets.BUFFER_ORG_ID }}
   THREADS_HANDLE: m.fauzan.aziz
-  MAX_VARIANTS_PER_DAY: '10'
+  MAX_VARIANTS_PER_DAY: '5'
 
 jobs:
   autoresearch:
