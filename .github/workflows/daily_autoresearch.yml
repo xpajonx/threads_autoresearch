@@ -1,0 +1,76 @@
+name: Daily Thread Autoresearch
+
+on:
+  schedule:
+    # Phase A: Feedback at 06:00 WIB (23:00 UTC previous day)
+    - cron: '0 23 * * *'
+    # Phase B: Generate+Publish at 07:00 WIB (00:00 UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Which phase to run'
+        required: true
+        default: 'generate'
+        type: choice
+        options:
+          - feedback
+          - generate
+
+env:
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  BUFFER_ACCESS_TOKEN: ${{ secrets.BUFFER_ACCESS_TOKEN }}
+  BUFFER_PROFILE_ID: ${{ secrets.BUFFER_PROFILE_ID }}
+  BUFFER_ORG_ID: ${{ secrets.BUFFER_ORG_ID }}
+  THREADS_HANDLE: m.fauzan.aziz
+  MAX_VARIANTS_PER_DAY: '10'
+
+jobs:
+  autoresearch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install requests python-dotenv "scrapling[all]>=0.4.3"
+          scrapling install --force
+
+      - name: Determine phase
+        id: phase
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "phase=${{ github.event.inputs.phase }}" >> $GITHUB_OUTPUT
+          else
+            HOUR=$(date -u +%H)
+            if [ "$HOUR" = "23" ]; then
+              echo "phase=feedback" >> $GITHUB_OUTPUT
+            else
+              echo "phase=generate" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Create .tmp directory
+        run: mkdir -p .tmp
+
+      - name: Phase A - Feedback (Scrape analytics + update memory)
+        if: steps.phase.outputs.phase == 'feedback'
+        run: python execution/shadow_analytics.py --feedback
+
+      - name: Phase B - Generate and Publish
+        if: steps.phase.outputs.phase == 'generate'
+        run: python execution/autoresearch_loop.py --topic-auto
+
+      - name: Commit results
+        run: |
+          git config user.name "autoresearch-bot"
+          git config user.email "bot@autoresearch.local"
+          git add results.tsv mutation_memory.json topics_queue.json || true
+          git diff --cached --quiet || git commit -m "autoresearch: $(date +%Y-%m-%d) [${PHASE}]"
+          git push
+        env:
+          PHASE: ${{ steps.phase.outputs.phase }}
