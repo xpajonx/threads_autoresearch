@@ -72,7 +72,18 @@ def get_next_topic() -> str | None:
                 json.dump(data, f, indent=2)
             return item["topic"]
 
-    print("All topics processed. Add new topics to topics_queue.json.")
+    # --- Evergreen Mode Fallback ---
+    import random
+    done_topics = [item for item in data["queue"] if item["status"] == "done"]
+    if done_topics:
+        chosen = random.choice(done_topics)
+        print(f"Evergreen Mode: No new topics found. Re-processing: {chosen['topic']}")
+        chosen["date"] = datetime.now().strftime("%Y-%m-%d")
+        with open(queue_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        return chosen["topic"]
+
+    print("No topics found in queue or Research folder.")
     return None
 
 
