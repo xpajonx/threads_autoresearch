@@ -13,7 +13,8 @@ class Config:
         self.EXECUTION_DIR = base_dir / "execution"
         self.TMP_DIR = base_dir / ".tmp"
         
-        self.OBSIDIAN_RESEARCH_DIR = Path(os.getenv("OBSIDIAN_RESEARCH_DIR", r"D:\Pribadi\Obsidian\Writing\Research"))
+        res_dir = os.getenv("OBSIDIAN_RESEARCH_DIR", r"D:\Pribadi\Obsidian\Writing\Research")
+        self.OBSIDIAN_RESEARCH_DIR = Path(res_dir) if Path(res_dir).is_absolute() else base_dir / res_dir
         
         self.GROQ_API_KEY = os.getenv("GROQ_API_KEY")
         self.BUFFER_ACCESS_TOKEN = os.getenv("BUFFER_ACCESS_TOKEN")
