@@ -99,6 +99,19 @@ def load_results_tsv() -> list[dict]:
     return rows
 
 
+def save_results_tsv(rows: list[dict]):
+    """Save the updated results list back to results.tsv."""
+    tsv_path = configs.DATA_DIR / "results.tsv"
+    if not rows:
+        return
+    
+    header = list(rows[0].keys())
+    with open(tsv_path, "w", encoding="utf-8") as f:
+        f.write("\t".join(header) + "\n")
+        for row in rows:
+            f.write("\t".join(str(row.get(h, "")) for h in header) + "\n")
+
+
 def load_mutation_memory() -> dict:
     """Load or initialize mutation_memory.json."""
     mem_path = configs.DATA_DIR / "mutation_memory.json"
@@ -117,7 +130,7 @@ def save_mutation_memory(memory: dict):
 
 def update_memory_from_engagement(scraped_posts: list[dict], results: list[dict], memory: dict):
     """
-    Match scraped posts to results.tsv entries.
+    Match scraped posts to results.tsv entries with Maturity Delay (H-2).
     If engagement > median, count as a 'win' for that mutation.
     """
     if not scraped_posts or not results:
@@ -129,12 +142,26 @@ def update_memory_from_engagement(scraped_posts: list[dict], results: list[dict]
     median_eng = sorted(engagements)[len(engagements) // 2] if engagements else 0
     print(f"Median engagement: {median_eng}")
 
+    from datetime import datetime
+    today = datetime.now().date()
+    
     matched = 0
     for result in results:
         if result.get("status") == "feedback_done":
             continue
 
-        result_text = result.get("post_id", "")  # This is just the ID, we need content
+        # Maturity Delay: Only evaluate posts that are at least 2 days old (H-2)
+        # This ensures the engagement has "settled" equally for morning vs night posts.
+        post_date_str = result.get("date", "")
+        if post_date_str:
+            try:
+                post_date = datetime.strptime(post_date_str, "%Y-%m-%d").date()
+                days_old = (today - post_date).days
+                if days_old < 2:
+                    continue  # Skip, too young to evaluate
+            except ValueError:
+                pass
+
         mutation_str = result.get("mutation", "{}")
 
         try:
@@ -143,41 +170,39 @@ def update_memory_from_engagement(scraped_posts: list[dict], results: list[dict]
             continue
 
         # Try to match via final_posts.json (has the actual content)
-        final_posts_path = configs.TMP_DIR / "final_posts.json"
-        if final_posts_path.exists():
-            with open(final_posts_path, "r", encoding="utf-8") as f:
-                final_posts = json.load(f)
+        # Wait, final_posts.json only has the *latest* generation batch.
+        # We should match directly against result['content'] which we now save in results.tsv!
+        post_content = result.get("content", "")
+        if not post_content:
+            continue
+            
+        # Fuzzy match against scraped posts
+        best_match = None
+        best_ratio = 0.0
+        for sp in scraped_posts:
+            ratio = fuzzy_match(post_content, sp["text"])
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_match = sp
 
-            for fp in final_posts:
-                if fp.get("id") == result.get("post_id"):
-                    post_content = fp.get("content", "")
+        if best_match and best_ratio > 0.5:
+            matched += 1
+            eng = best_match["engagement"]
+            is_win = eng > median_eng
 
-                    # Fuzzy match against scraped posts
-                    best_match = None
-                    best_ratio = 0.0
-                    for sp in scraped_posts:
-                        ratio = fuzzy_match(post_content, sp["text"])
-                        if ratio > best_ratio:
-                            best_ratio = ratio
-                            best_match = sp
+            # Update memory for each mutation key-value
+            for key, val in mutation.items():
+                tag = f"{key}:{val}"
+                if tag not in memory:
+                    memory[tag] = {"wins": 0, "total": 0, "total_engagement": 0}
+                memory[tag]["total"] += 1
+                memory[tag]["total_engagement"] += eng
+                if is_win:
+                    memory[tag]["wins"] += 1
 
-                    if best_match and best_ratio > 0.5:
-                        matched += 1
-                        eng = best_match["engagement"]
-                        is_win = eng > median_eng
-
-                        # Update memory for each mutation key-value
-                        for key, val in mutation.items():
-                            tag = f"{key}:{val}"
-                            if tag not in memory:
-                                memory[tag] = {"wins": 0, "total": 0, "total_engagement": 0}
-                            memory[tag]["total"] += 1
-                            memory[tag]["total_engagement"] += eng
-                            if is_win:
-                                memory[tag]["wins"] += 1
-
-                        print(f"  Matched '{post_content[:50]}...' -> engagement={eng} (win={is_win})")
-                    break
+            # Mark as done so we don't evaluate it again tomorrow
+            result["status"] = "feedback_done"
+            print(f"  Matched '{post_content[:50]}...' -> engagement={eng} (win={is_win})")
 
     print(f"\nMatched {matched} posts to scraped analytics.")
     return memory
@@ -210,6 +235,7 @@ def run_feedback():
 
     # 5. Save
     save_mutation_memory(memory)
+    save_results_tsv(results)
     print(f"\nMutation memory updated. {len(memory)} mutation tags tracked.")
 
     # 6. Print leaderboard
