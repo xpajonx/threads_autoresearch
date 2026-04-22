@@ -84,7 +84,7 @@ def fuzzy_match(text_a: str, text_b: str, threshold: float = 0.6) -> float:
 
 def load_results_tsv() -> list[dict]:
     """Load results.tsv into a list of dicts."""
-    tsv_path = configs.BASE_DIR / "results.tsv"
+    tsv_path = configs.DATA_DIR / "results.tsv"
     if not tsv_path.exists():
         return []
 
@@ -101,7 +101,7 @@ def load_results_tsv() -> list[dict]:
 
 def load_mutation_memory() -> dict:
     """Load or initialize mutation_memory.json."""
-    mem_path = configs.BASE_DIR / "mutation_memory.json"
+    mem_path = configs.DATA_DIR / "mutation_memory.json"
     if mem_path.exists():
         with open(mem_path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -110,7 +110,7 @@ def load_mutation_memory() -> dict:
 
 def save_mutation_memory(memory: dict):
     """Save mutation_memory.json."""
-    mem_path = configs.BASE_DIR / "mutation_memory.json"
+    mem_path = configs.DATA_DIR / "mutation_memory.json"
     with open(mem_path, "w", encoding="utf-8") as f:
         json.dump(memory, f, indent=2, ensure_ascii=False)
 

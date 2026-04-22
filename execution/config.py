@@ -16,6 +16,12 @@ class Config:
         res_dir = os.getenv("OBSIDIAN_RESEARCH_DIR", r"D:\Pribadi\Obsidian\Writing\Research")
         self.OBSIDIAN_RESEARCH_DIR = Path(res_dir) if Path(res_dir).is_absolute() else base_dir / res_dir
         
+        data_dir = os.getenv("DATA_DIR")
+        if data_dir:
+            self.DATA_DIR = Path(data_dir) if Path(data_dir).is_absolute() else base_dir / data_dir
+        else:
+            self.DATA_DIR = self.OBSIDIAN_RESEARCH_DIR.parent / "AI_Automation_Data"
+        
         self.GROQ_API_KEY = os.getenv("GROQ_API_KEY")
         self.BUFFER_ACCESS_TOKEN = os.getenv("BUFFER_ACCESS_TOKEN")
         self.BUFFER_PROFILE_ID = os.getenv("BUFFER_PROFILE_ID")
@@ -27,7 +33,7 @@ class Config:
         self.POSTING_TIME = os.getenv("POSTING_TIME", "09:00")
         
         # Ensure directories exist
-        for d in [self.TMP_DIR, self.EXECUTION_DIR]:
+        for d in [self.TMP_DIR, self.EXECUTION_DIR, self.DATA_DIR]:
             d.mkdir(parents=True, exist_ok=True)
 
 configs = Config()

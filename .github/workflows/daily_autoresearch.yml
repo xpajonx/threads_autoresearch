@@ -29,7 +29,19 @@ jobs:
   autoresearch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # 1. Checkout the execution engine repository (this repo)
+      - name: Checkout Execution Repo
+        uses: actions/checkout@v4
+        with:
+          path: engine
+
+      # 2. Checkout the Obsidian Database repository using PAT
+      - name: Checkout Database Repo
+        uses: actions/checkout@v4
+        with:
+          repository: xpajonx/Writing
+          token: ${{ secrets.OBSIDIAN_REPO_PAT }}
+          path: database
 
       - uses: actions/setup-python@v5
         with:
@@ -37,6 +49,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          cd engine
           pip install requests python-dotenv "scrapling[all]>=0.4.3"
           scrapling install --force
 
@@ -55,21 +68,33 @@ jobs:
           fi
 
       - name: Create .tmp directory
-        run: mkdir -p .tmp
+        run: |
+          mkdir -p engine/.tmp
 
       - name: Phase A - Feedback (Scrape analytics + update memory)
         if: steps.phase.outputs.phase == 'feedback'
-        run: python execution/shadow_analytics.py --feedback
+        run: |
+          cd engine
+          python execution/shadow_analytics.py --feedback
+        env:
+          OBSIDIAN_RESEARCH_DIR: ../database/Research
+          DATA_DIR: ../database/AI_Automation_Data
 
       - name: Phase B - Generate and Publish
         if: steps.phase.outputs.phase == 'generate'
-        run: python execution/autoresearch_loop.py --topic-auto
-
-      - name: Commit results
         run: |
+          cd engine
+          python execution/autoresearch_loop.py --topic-auto
+        env:
+          OBSIDIAN_RESEARCH_DIR: ../database/Research
+          DATA_DIR: ../database/AI_Automation_Data
+
+      - name: Commit results to Database Repo
+        run: |
+          cd database
           git config user.name "autoresearch-bot"
           git config user.email "bot@autoresearch.local"
-          git add results.tsv mutation_memory.json topics_queue.json || true
+          git add .
           git diff --cached --quiet || git commit -m "autoresearch: $(date +%Y-%m-%d) [${PHASE}]"
           git push
         env:

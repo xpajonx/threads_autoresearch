@@ -26,7 +26,7 @@ from execution.buffer_publisher import publish_single_post
 
 def log_result(post_id, score, status, mutation, content=""):
     """Append a row to results.tsv."""
-    tsv_path = configs.BASE_DIR / "results.tsv"
+    tsv_path = configs.DATA_DIR / "results.tsv"
     if not tsv_path.exists():
         with open(tsv_path, "w", encoding="utf-8") as f:
             f.write("post_id\tscore\tstatus\tmutation\tcontent\tdate\n")
@@ -41,7 +41,7 @@ def log_result(post_id, score, status, mutation, content=""):
 
 def get_next_topic() -> str | None:
     """Read topics_queue.json, return first pending topic, mark as processing."""
-    queue_path = configs.BASE_DIR / "topics_queue.json"
+    queue_path = configs.DATA_DIR / "topics_queue.json"
     if not queue_path.exists():
         # Auto-generate from Research dir
         research_dir = configs.OBSIDIAN_RESEARCH_DIR
@@ -89,7 +89,7 @@ def get_next_topic() -> str | None:
 
 def mark_topic_done(topic: str):
     """Mark a topic as done in topics_queue.json."""
-    queue_path = configs.BASE_DIR / "topics_queue.json"
+    queue_path = configs.DATA_DIR / "topics_queue.json"
     if not queue_path.exists():
         return
 

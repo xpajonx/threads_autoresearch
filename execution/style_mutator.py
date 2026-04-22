@@ -27,7 +27,7 @@ EPSILON = 0.3  # 30% explore, 70% exploit
 
 def load_mutation_memory() -> dict:
     """Load mutation_memory.json."""
-    mem_path = configs.BASE_DIR / "mutation_memory.json"
+    mem_path = configs.DATA_DIR / "mutation_memory.json"
     if mem_path.exists():
         with open(mem_path, "r", encoding="utf-8") as f:
             return json.load(f)
