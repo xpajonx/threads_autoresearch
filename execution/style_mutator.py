@@ -132,7 +132,7 @@ STYLE MUTATIONS TO APPLY:
 
 STRICT PLATFORM RULES:
 1. Return ONLY a valid JSON object with a single key "post" containing a string.
-2. The post MUST be strictly UNDER 140 characters. No exceptions.
+2. The post should be detailed but MUST be strictly UNDER 500 characters. No exceptions.
 3. Do not use AI-isms (like 'essentially', 'in conclusion').
 4. Do not include hashtags.
 5. Combine the claim and evidence naturally.

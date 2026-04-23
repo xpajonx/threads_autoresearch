@@ -8,7 +8,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from execution.config import configs
 from execution.buffer_publisher import publish_single_post
-from execution.style_mutator import groq_completion
+from execution.style_mutator import call_groq_api
 
 def extract_threads_post(content: str) -> str:
     """Extract the Draft Threads Post section from the markdown content."""
@@ -23,11 +23,21 @@ def extract_threads_post(content: str) -> str:
         insight = match.group(1).strip()
         # Fallback: Let Groq write a thread post based on the insight
         prompt = f"""You are a tech/AI thought leader on Threads. 
-Write a short, engaging thread (1-3 short paragraphs) based on this insight:
+Write an engaging Threads post based on this insight:
 {insight}
 
-Make it sound natural, human, and straight to the point. No hashtags. No generic intro."""
-        return groq_completion(prompt)
+Make it sound natural, human, and straight to the point. No hashtags. No generic intro.
+You have up to 500 characters. Provide a detailed, high-value post, but it MUST be strictly UNDER 500 characters.
+
+Return ONLY a valid JSON object with a single key "post" containing your written post.
+"""
+        try:
+            response_text = call_groq_api(prompt)
+            result_json = json.loads(response_text)
+            return result_json.get("post", "").strip()
+        except Exception as e:
+            print(f"Failed to generate thread from Groq: {e}")
+            return ""
     
     return ""
 
