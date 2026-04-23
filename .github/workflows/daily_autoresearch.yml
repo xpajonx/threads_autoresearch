@@ -97,6 +97,7 @@ jobs:
           git config user.email "bot@autoresearch.local"
           git add .
           git diff --cached --quiet || git commit -m "autoresearch: $(date +%Y-%m-%d) [${PHASE}]"
-          git push
+          git push https://x-access-token:${OBSIDIAN_REPO_PAT}@github.com/xpajonx/Writing.git HEAD:main
         env:
           PHASE: ${{ steps.phase.outputs.phase }}
+          OBSIDIAN_REPO_PAT: ${{ secrets.OBSIDIAN_REPO_PAT }}
