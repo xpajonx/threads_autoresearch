@@ -49,7 +49,7 @@ def score_virality(thread_posts: list) -> tuple:
     # Strict penalty if over 140 chars or orphan posts
     fit_score = 1.0
     for post in thread_posts:
-        if len(post.get("content", "")) > 500:
+        if len(post.get("content", "")) > 140:
             fit_score = 0.0 # Instant fail for platform constraint
             break
     
