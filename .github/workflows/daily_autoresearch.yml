@@ -85,6 +85,7 @@ jobs:
         run: |
           cd engine
           python execution/autoresearch_loop.py --topic-auto
+          python execution/insight_publisher.py
         env:
           OBSIDIAN_RESEARCH_DIR: ../database/Research
           DATA_DIR: ../database/AI_Automation_Data
