@@ -23,6 +23,7 @@ class Config:
             self.DATA_DIR = self.OBSIDIAN_RESEARCH_DIR.parent / "AI_Automation_Data"
         
         self.GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+        self.OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
         self.BUFFER_ACCESS_TOKEN = os.getenv("BUFFER_ACCESS_TOKEN")
         self.BUFFER_PROFILE_ID = os.getenv("BUFFER_PROFILE_ID")
         self.BUFFER_ORG_ID = os.getenv("BUFFER_ORG_ID")
