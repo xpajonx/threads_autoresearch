@@ -12,49 +12,62 @@ from execution.config import configs
 def parse_source_of_truth(topic_dir: Path):
     """
     Parses Source_of_Truth.md into discrete data points.
-    Extremely permissive: looks for 'Klaim' and 'Bukti' anywhere on a line.
+    1. Tries to find 'Klaim' and 'Bukti' pairs.
+    2. Fallback: Uses Level 3 Headers (###) as claims and following text as evidence.
     """
     sot_path = topic_dir / "Source_of_Truth.md"
     if not sot_path.exists():
         raise FileNotFoundError(f"Missing {sot_path}")
         
     with open(sot_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+        content = f.read()
 
     data_points = []
+    
+    # Strategy 1: Klaim/Bukti pairs
+    lines = content.splitlines()
     current_claim = ""
     current_evidence = ""
     
-    # Simple keyword-based extraction
     for line in lines:
         line_clean = line.strip()
-        if not line_clean:
-            continue
+        if not line_clean: continue
             
-        # Look for Klaim (case insensitive, handles various separators)
         if re.search(r"Klaim", line_clean, re.IGNORECASE) and (":" in line_clean or "**" in line_clean):
-            # Extract everything after the first colon or after the word Klaim
             parts = re.split(r"Klaim\**\s*[:\-]?\s*", line_clean, maxsplit=1, flags=re.IGNORECASE)
-            if len(parts) > 1:
-                current_claim = parts[1].strip()
+            if len(parts) > 1: current_claim = parts[1].strip()
         
-        # Look for Bukti
         elif re.search(r"Bukti", line_clean, re.IGNORECASE) and (":" in line_clean or "**" in line_clean):
             parts = re.split(r"Bukti\**\s*[:\-]?\s*", line_clean, maxsplit=1, flags=re.IGNORECASE)
-            if len(parts) > 1:
-                current_evidence = parts[1].strip()
+            if len(parts) > 1: current_evidence = parts[1].strip()
             
         if current_claim and current_evidence:
-            data_points.append({
-                "claim": current_claim,
-                "evidence": current_evidence
-            })
-            current_claim = ""
-            current_evidence = ""
+            data_points.append({"claim": current_claim, "evidence": current_evidence})
+            current_claim = ""; current_evidence = ""
+
+    # Strategy 2: Fallback to Headers (###)
+    if not data_points:
+        print(f"DEBUG: No Klaim/Bukti found in {sot_path.name}. Trying header-based fallback...")
+        # Find all ### Headers
+        sections = re.split(r"(?=\n### )", "\n" + content)
+        for section in sections:
+            section = section.strip()
+            if not section.startswith("###"): continue
+            
+            lines = section.splitlines()
+            # Header is the claim
+            claim = lines[0].replace("###", "").strip()
+            # Everything else is evidence
+            evidence = " ".join([l.strip() for l in lines[1:] if l.strip()])
+            
+            if claim and evidence:
+                # Remove common list prefixes like "1. ", "2. "
+                claim = re.sub(r"^\d+\.\s*", "", claim)
+                data_points.append({"claim": claim, "evidence": evidence[:500]})
 
     if not data_points:
-        print(f"DEBUG: Could not parse {sot_path.name}. First 5 lines of content:")
-        for i, line in enumerate(lines[:5]):
+        print(f"DEBUG: Still could not parse {sot_path.name}. First 5 lines:")
+        for i, line in enumerate(content.splitlines()[:5]):
             print(f"  L{i+1}: {repr(line)}")
             
     return data_points
