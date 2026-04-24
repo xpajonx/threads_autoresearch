@@ -42,43 +42,62 @@ Return ONLY a valid JSON object with a single key "post" containing your written
     return ""
 
 def process_ai_insights():
-    insights_dir = configs.OBSIDIAN_RESEARCH_DIR / "AI_Insights"
-    if not insights_dir.exists():
-        print(f"Insights directory not found at {insights_dir}")
+    # Try multiple common locations for AI_Insights
+    possible_paths = [
+        configs.OBSIDIAN_RESEARCH_DIR / "AI_Insights",
+        configs.OBSIDIAN_RESEARCH_DIR.parent / "AI_Insights",
+    ]
+    
+    insights_dir = None
+    for path in possible_paths:
+        if path.exists() and path.is_dir():
+            insights_dir = path
+            break
+
+    if not insights_dir:
+        print(f"DEBUG: AI_Insights directory not found in: {[str(p) for p in possible_paths]}")
         return
 
     print(f"Scanning for pending AI Insights in {insights_dir}...")
     
+    files = list(insights_dir.glob("*.md"))
+    print(f"Found {len(files)} markdown files total.")
+
     published_count = 0
-    for md_file in insights_dir.glob("*.md"):
+    for md_file in files:
         try:
             with open(md_file, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            # Check if it's pending
-            if "status: pending" in content:
+            # Case-insensitive status check
+            status_match = re.search(r"status:\s*pending", content, re.IGNORECASE)
+            if status_match:
                 print(f"Processing: {md_file.name}")
                 
                 # Extract or generate Threads content
                 thread_content = extract_threads_post(content)
                 if not thread_content:
-                    print(f"  Failed to extract or generate thread content for {md_file.name}. Skipping.")
+                    print(f"  [ERROR] Failed to extract or generate thread content for {md_file.name}. Skipping.")
                     continue
                 
                 print(f"  Content ready. length: {len(thread_content)}")
-                print(f"  Preview: {thread_content[:100]}...")
                 
                 # Publish to Buffer
                 print("  Publishing to Buffer...")
                 publish_single_post(thread_content)
                 
-                # Mark as published
-                new_content = content.replace("status: pending", "status: published")
+                # Mark as published (preserving original case for the label if possible, but standardizing value)
+                new_content = re.sub(r"status:\s*pending", "status: published", content, flags=re.IGNORECASE)
                 with open(md_file, "w", encoding="utf-8") as f:
                     f.write(new_content)
                     
                 print(f"  Marked {md_file.name} as published.")
                 published_count += 1
+            else:
+                # Debug: why was it skipped?
+                if "status:" in content.lower():
+                    current_status = re.search(r"status:\s*(\w+)", content, re.IGNORECASE)
+                    print(f"  Skipping {md_file.name}: status is '{current_status.group(1) if current_status else 'unknown'}'")
                 
         except Exception as e:
             print(f"Error processing {md_file.name}: {e}")

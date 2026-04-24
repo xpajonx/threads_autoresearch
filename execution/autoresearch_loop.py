@@ -116,10 +116,15 @@ def main(topic: str, dry_run: bool = False):
     topic_dir = configs.OBSIDIAN_RESEARCH_DIR / topic
     data_points = parse_source_of_truth(topic_dir)
 
+    print(f"Data points found in Source_of_Truth: {len(data_points)}")
+    if not data_points:
+        print("  [ERROR] No data points found! Check if Source_of_Truth.md follows the '- **Klaim**: ...' format.")
+        sys.exit(1)
+
     max_posts = min(configs.MAX_VARIANTS_PER_DAY, len(data_points))
     data_points = data_points[:max_posts]
 
-    print(f"Data points: {len(data_points)} | Generating: {max_posts} posts\n")
+    print(f"Generating: {max_posts} posts\n")
 
     # Load mutation memory for biased selection
     memory = load_mutation_memory()
@@ -166,15 +171,22 @@ def main(topic: str, dry_run: bool = False):
     print(f"\n=== Saved {len(final_posts)} posts to {final_path} ===")
 
     # Publish
+    publish_success_count = 0
     if not dry_run:
         print("\nPublishing to Buffer Queue...")
         for p in final_posts:
             try:
                 publish_single_post(p["content"])
+                publish_success_count += 1
             except Exception as e:
-                print(f"  Failed to publish {p['id']}: {e}")
+                print(f"  [ERROR] Failed to publish {p['id']}: {e}")
     else:
         print("\n[DRY RUN] Skipping Buffer publish.")
+        publish_success_count = len(final_posts)
+
+    if publish_success_count == 0 and len(data_points) > 0:
+        print("\n[CRITICAL ERROR] A topic was selected but 0 posts were successfully published.")
+        sys.exit(1)
 
     # Mark topic done
     mark_topic_done(topic)
