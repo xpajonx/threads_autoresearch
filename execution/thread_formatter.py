@@ -12,6 +12,7 @@ from execution.config import configs
 def parse_source_of_truth(topic_dir: Path):
     """
     Parses Source_of_Truth.md into discrete data points to format into short posts.
+    Supports variations in formatting (spaces, bolding, bullet types).
     """
     sot_path = topic_dir / "Source_of_Truth.md"
     if not sot_path.exists():
@@ -20,24 +21,29 @@ def parse_source_of_truth(topic_dir: Path):
     with open(sot_path, "r", encoding="utf-8") as f:
         content = f.read()
 
+    # Regex to find Klaim and Bukti pairs more flexibly
+    # Matches: - **Klaim**: text, * **Klaim**: text, Klaim: text, etc.
+    claim_pattern = re.compile(r"(?:^|\n)[ \t]*[-*+]?[ \t]*\**Klaim\**\s*:\s*(.*)", re.IGNORECASE)
+    evidence_pattern = re.compile(r"(?:^|\n)[ \t]*[-*+]?[ \t]*\**Bukti\**\s*:\s*(.*)", re.IGNORECASE)
+
     data_points = []
-    lines = content.split('\n')
-    current_claim = ""
-    current_evidence = ""
     
-    for line in lines:
-        if line.startswith("- **Klaim**:"):
-            current_claim = line.replace("- **Klaim**:", "").strip()
-        elif line.startswith("- **Bukti**:"):
-            current_evidence = line.replace("- **Bukti**:", "").strip()
+    # Split content by Klaim to find blocks
+    # This assumes each data point starts with a Klaim
+    blocks = re.split(r"(?=\n[ \t]*[-*+]?[ \t]*\**Klaim\**\s*:)", "\n" + content, flags=re.IGNORECASE)
+    
+    for block in blocks:
+        if not block.strip():
+            continue
             
-        if current_claim and current_evidence:
+        claim_match = claim_pattern.search(block)
+        evidence_match = evidence_pattern.search(block)
+        
+        if claim_match and evidence_match:
             data_points.append({
-                "claim": current_claim,
-                "evidence": current_evidence
+                "claim": claim_match.group(1).strip(),
+                "evidence": evidence_match.group(1).strip()
             })
-            current_claim = ""
-            current_evidence = ""
             
     return data_points
 
