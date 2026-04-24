@@ -19,59 +19,59 @@ from execution.config import configs
 
 
 def scrape_threads_profile(handle: str) -> list[dict]:
-    """Scrape threads.net/@handle and extract posts with engagement metrics."""
-    from scrapling.fetchers import StealthyFetcher
-
-    url = f"https://www.threads.net/@{handle}"
-    print(f"Scraping {url}...")
-
-    page = StealthyFetcher.fetch(
-        url,
-        headless=True,
-        network_idle=True,
-        wait=5000,
-    )
-
-    if page.status != 200:
-        print(f"Failed to fetch Threads profile. Status: {page.status}")
+    """
+    Fetch analytics from Buffer API instead of scraping Threads directly.
+    Returns a list of posts with engagement metrics.
+    """
+    import requests
+    
+    token = configs.BUFFER_ACCESS_TOKEN
+    profile_id = configs.BUFFER_PROFILE_ID
+    
+    if not token or not profile_id:
+        print("Buffer credentials missing. Cannot fetch analytics.")
         return []
 
-    html = str(page.body)
+    url = f"https://api.bufferapp.com/1/profiles/{profile_id}/updates/sent.json"
+    params = {
+        "access_token": token,
+        "count": 100 # Get last 100 posts
+    }
 
-    # Find all unique post PKs
-    pk_pattern = r'"pk"\s*:\s*"(\d{17,})"'
-    unique_pks = list(set(re.findall(pk_pattern, html)))
-
-    posts = []
-    for pk in unique_pks:
-        pk_indices = [m.start() for m in re.finditer(f'"pk"\\s*:\\s*"{pk}"', html)]
-
-        for idx in pk_indices:
-            context = html[max(0, idx - 2000) : idx + 3000]
-
-            text_match = re.search(r'"text"\s*:\s*"([^"]{5,500})"', context)
-            like_match = re.search(r'"like_count"\s*:\s*(\d+)', context)
-            reply_match = re.search(r'"direct_reply_count"\s*:\s*(\d+)', context)
-            repost_match = re.search(r'"repost_count"\s*:\s*(\d+)', context)
-            quote_match = re.search(r'"quote_count"\s*:\s*(\d+)', context)
-
-            if text_match and like_match:
-                post = {
-                    "pk": pk,
-                    "text": text_match.group(1).replace("\\\\n", " ").replace("\\n", " ")[:200],
-                    "likes": int(like_match.group(1)),
-                    "replies": int(reply_match.group(1)) if reply_match else 0,
-                    "reposts": int(repost_match.group(1)) if repost_match else 0,
-                    "quotes": int(quote_match.group(1)) if quote_match else 0,
-                }
-                post["engagement"] = post["likes"] + post["replies"] + post["reposts"] + post["quotes"]
-
-                if not any(p["pk"] == pk and p["text"] == post["text"] for p in posts):
-                    posts.append(post)
-                break
-
-    print(f"Extracted {len(posts)} posts with engagement data.")
-    return posts
+    print(f"Fetching analytics from Buffer API for profile {profile_id}...")
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        updates = data.get("updates", [])
+        posts = []
+        
+        for up in updates:
+            stats = up.get("statistics", {})
+            # Normalized stats for Threads/Buffer
+            likes = stats.get("favorites", 0) or stats.get("likes", 0)
+            replies = stats.get("replies", 0)
+            reposts = stats.get("retweets", 0) or stats.get("reposts", 0)
+            quotes = stats.get("quotes", 0)
+            
+            post = {
+                "pk": up.get("id"),
+                "text": up.get("text", "")[:200],
+                "likes": int(likes),
+                "replies": int(replies),
+                "reposts": int(reposts),
+                "quotes": int(quotes),
+            }
+            post["engagement"] = post["likes"] + post["replies"] + post["reposts"] + post["quotes"]
+            posts.append(post)
+            
+        print(f"Retrieved {len(posts)} posts from Buffer analytics.")
+        return posts
+        
+    except Exception as e:
+        print(f"Failed to fetch Buffer analytics: {e}")
+        return []
 
 
 def fuzzy_match(text_a: str, text_b: str, threshold: float = 0.6) -> float:

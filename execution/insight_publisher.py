@@ -10,6 +10,14 @@ from execution.config import configs
 from execution.buffer_publisher import publish_single_post
 from execution.style_mutator import call_groq_api
 
+def load_voice_profile() -> dict:
+    """Load voice_profile.json."""
+    voice_path = Path(__file__).resolve().parent / "voice_profile.json"
+    if voice_path.exists():
+        with open(voice_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
 def extract_threads_post(content: str) -> str:
     """Extract the Draft Threads Post section from the markdown content."""
     # Look for the section under ## Draft Threads Post
@@ -22,14 +30,23 @@ def extract_threads_post(content: str) -> str:
     if match:
         insight = match.group(1).strip()
         # Fallback: Let Groq write a thread post based on the insight
+        voice = load_voice_profile()
+        voice_str = json.dumps(voice, indent=2)
+        
         prompt = f"""You are a tech/AI thought leader on Threads. 
 Write an engaging Threads post based on this insight:
 {insight}
 
-Make it sound natural, human, and straight to the point. No hashtags. No generic intro.
-You have up to 500 characters. Provide a detailed, high-value post, but it MUST be strictly UNDER 500 characters.
+VOICE CONSTRAINTS:
+{voice_str}
 
-Return ONLY a valid JSON object with a single key "post" containing your written post.
+STRICT PLATFORM RULES:
+1. Write in conversational Indonesian (Bahasa Indonesia) using pronouns like "gue/lo" as specified in the voice profile.
+2. Make it sound natural, human, and straight to the point. No hashtags. No generic intro.
+3. You have up to 500 characters. Provide a detailed, high-value post, but it MUST be strictly UNDER 500 characters.
+4. Do not use AI-isms.
+
+Return ONLY a valid JSON object with a single key "post" containing your written post in Indonesian.
 """
         try:
             response_text = call_groq_api(prompt)
