@@ -11,6 +11,7 @@ Usage:
 import os
 import sys
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -62,6 +63,7 @@ def get_next_topic() -> tuple[str | None, bool]:
     existing_topics = {item["topic"] for item in data["queue"]}
     found_new = False
     
+    # Sync Dossier Folders
     for d in sorted(research_dir.iterdir()):
         if not d.is_dir() or not (d / "Source_of_Truth.md").exists():
             continue
@@ -69,8 +71,22 @@ def get_next_topic() -> tuple[str | None, bool]:
             continue
         if d.name not in existing_topics:
             print(f"New topic found in Research: {d.name}")
-            data["queue"].append({"topic": d.name, "status": "pending", "date": None})
+            data["queue"].append({"topic": d.name, "status": "pending", "date": None, "type": "dossier"})
             found_new = True
+
+    # Sync AI_Insights Files
+    insights_dir = research_dir / "AI_Insights"
+    if insights_dir.exists():
+        for f in sorted(insights_dir.glob("*.md")):
+            topic_id = f"FILE:AI_Insights/{f.name}"
+            if topic_id not in existing_topics:
+                # Check if it's already published by checking content
+                with open(f, "r", encoding="utf-8") as file_content:
+                    if "status: published" in file_content.read().lower():
+                        continue
+                print(f"New AI Insight found: {f.name}")
+                data["queue"].append({"topic": topic_id, "status": "pending", "date": None, "type": "insight"})
+                found_new = True
 
     if found_new:
         with open(queue_path, "w", encoding="utf-8") as f:
@@ -102,7 +118,7 @@ def get_next_topic() -> tuple[str | None, bool]:
 
 
 def mark_topic_done(topic: str):
-    """Mark a topic as done in topics_queue.json."""
+    """Mark a topic as done in topics_queue.json and update file status if applicable."""
     queue_path = configs.DATA_DIR / "topics_queue.json"
     if not queue_path.exists():
         return
@@ -114,6 +130,25 @@ def mark_topic_done(topic: str):
         if item["topic"] == topic:
             item["status"] = "done"
             item["date"] = datetime.now().strftime("%Y-%m-%d")
+            
+            # If it's an AI Insight file, update the file content too
+            if topic.startswith("FILE:"):
+                file_rel_path = topic.replace("FILE:", "")
+                file_path = configs.OBSIDIAN_RESEARCH_DIR / file_rel_path
+                if file_path.exists():
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f_meta:
+                            content = f_meta.read()
+                        new_content = re.sub(r"status:\s*pending", "status: published", content, flags=re.IGNORECASE)
+                        if new_content == content and "status:" not in content.lower():
+                            # If no status line exists, append it
+                            new_content = content.strip() + "\n\nstatus: published"
+                        
+                        with open(file_path, "w", encoding="utf-8") as f_meta:
+                            f_meta.write(new_content)
+                        print(f"Updated file status to published: {file_path.name}")
+                    except Exception as e:
+                        print(f"Failed to update file status for {file_path}: {e}")
 
     with open(queue_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -127,8 +162,14 @@ def main(topic: str, dry_run: bool = False):
         print("voice_profile.json missing! Run voice_extractor.py first.")
         return
 
-    topic_dir = configs.OBSIDIAN_RESEARCH_DIR / topic
-    data_points = parse_source_of_truth(topic_dir)
+    # Handle file-based topics (AI Insights) vs Folder-based (Dossiers)
+    if topic.startswith("FILE:"):
+        file_rel_path = topic.replace("FILE:", "")
+        topic_path = configs.OBSIDIAN_RESEARCH_DIR / file_rel_path
+    else:
+        topic_path = configs.OBSIDIAN_RESEARCH_DIR / topic
+        
+    data_points = parse_source_of_truth(topic_path)
 
     print(f"Data points found in Source_of_Truth: {len(data_points)}")
     if not data_points:
