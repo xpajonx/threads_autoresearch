@@ -39,14 +39,17 @@ def log_result(post_id, score, status, mutation, content=""):
         f.write(f"{post_id}\t{score}\t{status}\t{mut_str}\t{safe_content}\t{date_str}\n")
 
 
-def get_next_topic() -> str | None:
-    """Read topics_queue.json, sync with Research dir, return first pending topic."""
+def get_next_topic() -> tuple[str | None, bool]:
+    """
+    Read topics_queue.json, sync with Research dir, return (topic, is_evergreen).
+    is_evergreen is True if no new pending topics were found.
+    """
     queue_path = configs.DATA_DIR / "topics_queue.json"
     research_dir = configs.OBSIDIAN_RESEARCH_DIR
     
     if not research_dir.exists():
         print(f"Research dir not found: {research_dir}")
-        return None
+        return None, False
 
     # Load or init queue
     if queue_path.exists():
@@ -60,14 +63,10 @@ def get_next_topic() -> str | None:
     found_new = False
     
     for d in sorted(research_dir.iterdir()):
-        # Skip if not a directory or missing Source_of_Truth.md
         if not d.is_dir() or not (d / "Source_of_Truth.md").exists():
             continue
-        
-        # Skip AI_Insights and hidden folders
         if d.name == "AI_Insights" or d.name.startswith("."):
             continue
-            
         if d.name not in existing_topics:
             print(f"New topic found in Research: {d.name}")
             data["queue"].append({"topic": d.name, "status": "pending", "date": None})
@@ -84,7 +83,7 @@ def get_next_topic() -> str | None:
             item["date"] = datetime.now().strftime("%Y-%m-%d")
             with open(queue_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
-            return item["topic"]
+            return item["topic"], False
 
     # 3. Evergreen Mode Fallback
     import random
@@ -93,12 +92,13 @@ def get_next_topic() -> str | None:
         chosen = random.choice(done_topics)
         print(f"Evergreen Mode: No new topics found. Re-processing: {chosen['topic']}")
         chosen["date"] = datetime.now().strftime("%Y-%m-%d")
+        # Do NOT set status to processing for evergreen, keep it done or temporary
         with open(queue_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
-        return chosen["topic"]
+        return chosen["topic"], True
 
     print("No topics found in queue or Research folder.")
-    return None
+    return None, False
 
 
 def mark_topic_done(topic: str):
@@ -216,9 +216,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.topic_auto:
-        topic = get_next_topic()
+        topic, is_evergreen = get_next_topic()
         if not topic:
-            sys.exit(1)
+            sys.exit(0) # Exit cleanly if nothing to do
+        if is_evergreen:
+            print("INFO: Entering Evergreen mode (re-processing old topic).")
     elif args.topic:
         topic = args.topic
     else:
