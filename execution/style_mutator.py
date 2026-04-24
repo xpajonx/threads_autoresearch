@@ -43,13 +43,13 @@ def generate_random_mutation() -> dict:
 
 def generate_biased_mutation(memory: dict) -> dict:
     """Exploitation: pick mutations with highest win rate from memory."""
-    if not memory:
+    if not memory or not isinstance(memory, dict):
         return generate_random_mutation()
 
     # Score each mutation tag by win rate
     scored = {}
     for tag, stats in memory.items():
-        if stats["total"] > 0:
+        if isinstance(stats, dict) and stats.get("total", 0) > 0:
             scored[tag] = stats["wins"] / stats["total"]
 
     if not scored:
@@ -82,6 +82,9 @@ def select_mutation(memory: dict = None, epsilon: float = EPSILON) -> dict:
     """
     if memory is None:
         memory = load_mutation_memory()
+
+    if not isinstance(memory, dict):
+        return generate_random_mutation()
 
     if random.random() < epsilon or not memory:
         return generate_random_mutation()
