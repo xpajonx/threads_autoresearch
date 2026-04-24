@@ -40,30 +40,44 @@ def log_result(post_id, score, status, mutation, content=""):
 
 
 def get_next_topic() -> str | None:
-    """Read topics_queue.json, return first pending topic, mark as processing."""
+    """Read topics_queue.json, sync with Research dir, return first pending topic."""
     queue_path = configs.DATA_DIR / "topics_queue.json"
-    if not queue_path.exists():
-        # Auto-generate from Research dir
-        research_dir = configs.OBSIDIAN_RESEARCH_DIR
-        if not research_dir.exists():
-            print(f"Research dir not found: {research_dir}")
-            return None
+    research_dir = configs.OBSIDIAN_RESEARCH_DIR
+    
+    if not research_dir.exists():
+        print(f"Research dir not found: {research_dir}")
+        return None
 
-        topics = []
-        for d in sorted(research_dir.iterdir()):
-            if d.is_dir() and (d / "Source_of_Truth.md").exists():
-                topics.append({"topic": d.name, "status": "pending", "date": None})
+    # Load or init queue
+    if queue_path.exists():
+        with open(queue_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    else:
+        data = {"queue": []}
 
-        if not topics:
-            print("No topics with Source_of_Truth.md found.")
-            return None
+    # 1. Sync: Check for new folders in Research dir
+    existing_topics = {item["topic"] for item in data["queue"]}
+    found_new = False
+    
+    for d in sorted(research_dir.iterdir()):
+        # Skip if not a directory or missing Source_of_Truth.md
+        if not d.is_dir() or not (d / "Source_of_Truth.md").exists():
+            continue
+        
+        # Skip AI_Insights and hidden folders
+        if d.name == "AI_Insights" or d.name.startswith("."):
+            continue
+            
+        if d.name not in existing_topics:
+            print(f"New topic found in Research: {d.name}")
+            data["queue"].append({"topic": d.name, "status": "pending", "date": None})
+            found_new = True
 
+    if found_new:
         with open(queue_path, "w", encoding="utf-8") as f:
-            json.dump({"queue": topics}, f, indent=2)
+            json.dump(data, f, indent=2)
 
-    with open(queue_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
+    # 2. Pick next pending
     for item in data["queue"]:
         if item["status"] == "pending":
             item["status"] = "processing"
@@ -72,7 +86,7 @@ def get_next_topic() -> str | None:
                 json.dump(data, f, indent=2)
             return item["topic"]
 
-    # --- Evergreen Mode Fallback ---
+    # 3. Evergreen Mode Fallback
     import random
     done_topics = [item for item in data["queue"] if item["status"] == "done"]
     if done_topics:
