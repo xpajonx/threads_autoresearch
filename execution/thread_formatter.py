@@ -11,39 +11,51 @@ from execution.config import configs
 
 def parse_source_of_truth(topic_dir: Path):
     """
-    Parses Source_of_Truth.md into discrete data points to format into short posts.
-    Supports variations in formatting (spaces, bolding, bullet types).
+    Parses Source_of_Truth.md into discrete data points.
+    Extremely permissive: looks for 'Klaim' and 'Bukti' anywhere on a line.
     """
     sot_path = topic_dir / "Source_of_Truth.md"
     if not sot_path.exists():
         raise FileNotFoundError(f"Missing {sot_path}")
         
     with open(sot_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    # Regex to find Klaim and Bukti pairs more flexibly
-    # Matches: - **Klaim**: text, * **Klaim**: text, Klaim: text, etc.
-    claim_pattern = re.compile(r"(?:^|\n)[ \t]*[-*+]?[ \t]*\**Klaim\**\s*:\s*(.*)", re.IGNORECASE)
-    evidence_pattern = re.compile(r"(?:^|\n)[ \t]*[-*+]?[ \t]*\**Bukti\**\s*:\s*(.*)", re.IGNORECASE)
+        lines = f.readlines()
 
     data_points = []
+    current_claim = ""
+    current_evidence = ""
     
-    # Split content by Klaim to find blocks
-    # This assumes each data point starts with a Klaim
-    blocks = re.split(r"(?=\n[ \t]*[-*+]?[ \t]*\**Klaim\**\s*:)", "\n" + content, flags=re.IGNORECASE)
-    
-    for block in blocks:
-        if not block.strip():
+    # Simple keyword-based extraction
+    for line in lines:
+        line_clean = line.strip()
+        if not line_clean:
             continue
             
-        claim_match = claim_pattern.search(block)
-        evidence_match = evidence_pattern.search(block)
+        # Look for Klaim (case insensitive, handles various separators)
+        if re.search(r"Klaim", line_clean, re.IGNORECASE) and (":" in line_clean or "**" in line_clean):
+            # Extract everything after the first colon or after the word Klaim
+            parts = re.split(r"Klaim\**\s*[:\-]?\s*", line_clean, maxsplit=1, flags=re.IGNORECASE)
+            if len(parts) > 1:
+                current_claim = parts[1].strip()
         
-        if claim_match and evidence_match:
+        # Look for Bukti
+        elif re.search(r"Bukti", line_clean, re.IGNORECASE) and (":" in line_clean or "**" in line_clean):
+            parts = re.split(r"Bukti\**\s*[:\-]?\s*", line_clean, maxsplit=1, flags=re.IGNORECASE)
+            if len(parts) > 1:
+                current_evidence = parts[1].strip()
+            
+        if current_claim and current_evidence:
             data_points.append({
-                "claim": claim_match.group(1).strip(),
-                "evidence": evidence_match.group(1).strip()
+                "claim": current_claim,
+                "evidence": current_evidence
             })
+            current_claim = ""
+            current_evidence = ""
+
+    if not data_points:
+        print(f"DEBUG: Could not parse {sot_path.name}. First 5 lines of content:")
+        for i, line in enumerate(lines[:5]):
+            print(f"  L{i+1}: {repr(line)}")
             
     return data_points
 
