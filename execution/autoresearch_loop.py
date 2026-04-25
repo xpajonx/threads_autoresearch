@@ -54,13 +54,20 @@ def get_next_topic() -> tuple[str | None, bool]:
 
     # Load or init queue
     if queue_path.exists():
-        with open(queue_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(queue_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict) or "queue" not in data or not isinstance(data["queue"], list):
+                print(f"Warning: {queue_path} invalid format. Resetting queue.")
+                data = {"queue": []}
+        except Exception as e:
+            print(f"Error loading {queue_path}: {e}. Resetting.")
+            data = {"queue": []}
     else:
         data = {"queue": []}
 
     # 1. Sync: Check for new folders in Research dir
-    existing_topics = {item["topic"] for item in data["queue"]}
+    existing_topics = {item["topic"] for item in data["queue"] if isinstance(item, dict) and "topic" in item}
     found_new = False
     
     # Sync Dossier Folders
