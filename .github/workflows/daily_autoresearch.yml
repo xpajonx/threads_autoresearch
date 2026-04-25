@@ -89,16 +89,6 @@ jobs:
           OBSIDIAN_RESEARCH_DIR: ../database/Research
           DATA_DIR: ../database/AI_Automation_Data
 
-      - name: Phase B2 - AI Insight Publisher
-        if: steps.phase.outputs.phase == 'generate' || steps.phase.outputs.phase == 'feedback'
-        continue-on-error: true
-        run: |
-          cd engine
-          python execution/insight_publisher.py
-        env:
-          OBSIDIAN_RESEARCH_DIR: ../database/Research
-          DATA_DIR: ../database/AI_Automation_Data
-
       - name: Commit results to Database Repo
         if: always()
         run: |

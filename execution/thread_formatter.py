@@ -59,19 +59,40 @@ def parse_source_of_truth(topic_dir: Path):
             if claim and evidence:
                 data_points.append({"claim": claim, "evidence": evidence[:500]})
 
-    # --- Strategy 3: Fallback to Paragraph Blocks (for simple notes/insights) ---
+    # --- Strategy 3: Fallback to Paragraph Blocks (for simple notes/insights/journaling) ---
     if not data_points:
         # Split by double newlines, treat each non-empty block as a potential post
-        blocks = [b.strip() for b in content.split("\n\n") if len(b.strip()) > 40]
+        # We increase character threshold to ensure substance
+        blocks = [b.strip() for b in content.split("\n\n") if len(b.strip()) > 60]
+        
         for block in blocks:
-            # Skip title and metadata
-            if block.startswith("#") or "status:" in block.lower(): continue
-            # Use first sentence as claim, rest as evidence
-            parts = re.split(r"(?<=[.!?])\s+", block, maxsplit=1)
-            if len(parts) > 1:
-                data_points.append({"claim": parts[0], "evidence": parts[1][:500]})
+            # Skip title, status, tags, and common metadata patterns
+            if block.startswith("#") or "status:" in block.lower() or block.startswith("tags:"):
+                continue
+            
+            # Clean block: remove internal markdown headers/bullets that might confuse
+            clean_block = re.sub(r"^\s*[\-\*]\s+", "", block, flags=re.MULTILINE)
+            clean_block = re.sub(r"^#{1,6}\s+", "", clean_block, flags=re.MULTILINE)
+            
+            # Use first sentence as claim, use the FULL block as evidence (up to 800 chars)
+            # This gives Groq more context while keeping the post focused.
+            sentences = re.split(r"(?<=[.!?])\s+", clean_block, maxsplit=1)
+            
+            if len(sentences) > 1:
+                claim = sentences[0].strip()
+                # If claim is too long, truncate it
+                if len(claim) > 150:
+                    claim = claim[:147] + "..."
+                data_points.append({
+                    "claim": claim,
+                    "evidence": clean_block[:800]
+                })
             else:
-                data_points.append({"claim": "Insight", "evidence": block[:500]})
+                # If single sentence, use file name as context if possible, or generic header
+                data_points.append({
+                    "claim": "Insight Utama", 
+                    "evidence": clean_block[:800]
+                })
 
     return data_points
 
