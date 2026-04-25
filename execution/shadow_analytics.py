@@ -20,58 +20,115 @@ from execution.config import configs
 
 def scrape_threads_profile(handle: str) -> list[dict]:
     """
-    Fetch analytics from Buffer API instead of scraping Threads directly.
+    Fetch analytics from Threads directly using Playwright.
     Returns a list of posts with engagement metrics.
     """
-    import requests
+    from playwright.sync_api import sync_playwright
+    import json
+    import time
     
-    token = configs.BUFFER_ACCESS_TOKEN
-    profile_id = configs.BUFFER_PROFILE_ID
+    posts = []
     
-    if not token or not profile_id:
-        print("Buffer credentials missing. Cannot fetch analytics.")
-        return []
+    with sync_playwright() as p:
+        # Launch browser with stealth-like settings
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = context.new_page()
+        
+        captured_data = []
 
-    url = f"https://api.bufferapp.com/1/profiles/{profile_id}/updates/sent.json"
-    params = {
-        "access_token": token,
-        "count": 100 # Get last 100 posts
-    }
+        def handle_response(response):
+            # Capture GraphQL responses containing thread data
+            if "graphql" in response.url and response.status == 200:
+                try:
+                    data = response.json()
+                    if data and isinstance(data, dict):
+                        # Look for profile feed data or media data
+                        if "data" in data and ("mediaData" in data["data"] or "user" in data["data"]):
+                            captured_data.append(data)
+                except:
+                    pass
 
-    print(f"Fetching analytics from Buffer API for profile {profile_id}...")
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
+        page.on("response", handle_response)
         
-        updates = data.get("updates", [])
-        posts = []
+        url = f"https://www.threads.net/@{handle}"
+        print(f"Fetching analytics from Threads profile {url}...")
         
-        for up in updates:
-            stats = up.get("statistics", {})
-            # Normalized stats for Threads/Buffer
-            likes = stats.get("favorites", 0) or stats.get("likes", 0)
-            replies = stats.get("replies", 0)
-            reposts = stats.get("retweets", 0) or stats.get("reposts", 0)
-            quotes = stats.get("quotes", 0)
+        try:
+            page.goto(url, wait_until="networkidle", timeout=60000)
+            # Scroll to trigger more GraphQL loads
+            page.mouse.wheel(0, 3000)
+            time.sleep(3) # Wait for background requests
             
-            post = {
-                "pk": up.get("id"),
-                "text": up.get("text", "")[:200],
-                "likes": int(likes),
-                "replies": int(replies),
-                "reposts": int(reposts),
-                "quotes": int(quotes),
-            }
-            post["engagement"] = post["likes"] + post["replies"] + post["reposts"] + post["quotes"]
-            posts.append(post)
+            for entry in captured_data:
+                # Structure: data -> mediaData -> edges[] -> node -> thread_items[] -> post
+                # OR structure: data -> user -> edge_user_media -> edges[] ...
+                data_root = entry.get("data", {})
+                
+                # Check different possible data paths in the GraphQL response
+                media_data = data_root.get("mediaData") or data_root.get("user", {}).get("edge_user_media")
+                if not media_data:
+                    continue
+                    
+                edges = media_data.get("edges", [])
+                for edge in edges:
+                    node = edge.get("node", {})
+                    thread_items = node.get("thread_items", [])
+                    
+                    # If no thread_items, the node itself might be the post (depending on query)
+                    if not thread_items and "post" in node:
+                        thread_items = [{"post": node.get("post")}]
+                    elif not thread_items and node.get("__typename") == "XDTGraphMedia":
+                        thread_items = [{"post": node}]
+
+                    for item in thread_items:
+                        p_data = item.get("post")
+                        if not p_data: continue
+                        
+                        pk = p_data.get("pk")
+                        # Get text from caption or fragments
+                        text = p_data.get("caption", {}).get("text", "")
+                        if not text:
+                            fragments = p_data.get("text_post_app_info", {}).get("text_fragments", {}).get("fragments", [])
+                            text = " ".join(f.get("plaintext", "") for f in fragments if f.get("plaintext"))
+                        
+                        likes = p_data.get("like_count", 0)
+                        
+                        app_info = p_data.get("text_post_app_info", {})
+                        replies = app_info.get("direct_reply_count", 0)
+                        reposts = app_info.get("repost_count", 0)
+                        quotes = app_info.get("quote_count", 0)
+                        
+                        post = {
+                            "pk": str(pk),
+                            "text": text[:200],
+                            "likes": int(likes),
+                            "replies": int(replies),
+                            "reposts": int(reposts),
+                            "quotes": int(quotes),
+                        }
+                        post["engagement"] = post["likes"] + post["replies"] + post["reposts"] + post["quotes"]
+                        posts.append(post)
             
-        print(f"Retrieved {len(posts)} posts from Buffer analytics.")
-        return posts
-        
-    except Exception as e:
-        print(f"Failed to fetch Buffer analytics: {e}")
-        return []
+            # Deduplicate by pk
+            seen = set()
+            unique_posts = []
+            for p in posts:
+                if p["pk"] not in seen:
+                    unique_posts.append(p)
+                    seen.add(p["pk"])
+            posts = unique_posts
+            
+            print(f"Retrieved {len(posts)} posts from Threads scraping.")
+            return posts
+            
+        except Exception as e:
+            print(f"Failed to fetch Threads analytics: {e}")
+            return []
+        finally:
+            browser.close()
 
 
 def fuzzy_match(text_a: str, text_b: str, threshold: float = 0.6) -> float:

@@ -195,7 +195,21 @@ def main(topic: str, dry_run: bool = False):
 
         # Epsilon-greedy mutation selection
         mutation = select_mutation(memory)
-        mode = "exploit" if memory and any(m.get("total", 0) > 0 for m in memory.values()) else "explore"
+        
+        # Determine mode for logging/printing (robust to memory format)
+        has_data = False
+        if memory:
+            for m in memory.values():
+                if isinstance(m, dict) and m.get("total", 0) > 0:
+                    has_data = True
+                    break
+                elif isinstance(m, list) and len(m) > 0:
+                    # New format: check if any option has confidence > 0
+                    if any(isinstance(opt, dict) and opt.get("confidence", 0) > 0 for opt in m):
+                        has_data = True
+                        break
+
+        mode = "exploit" if memory and has_data else "explore"
         print(f"[{post_id}] {mode} | mutation: {mutation}")
 
         mutated_text = mutate_single_post(dp, voice_path, mutation)

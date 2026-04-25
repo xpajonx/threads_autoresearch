@@ -42,30 +42,57 @@ def generate_random_mutation() -> dict:
 
 
 def generate_biased_mutation(memory: dict) -> dict:
-    """Exploitation: pick mutations with highest win rate from memory."""
+    """Exploitation: pick mutations with highest win rate or score from memory."""
     if not memory or not isinstance(memory, dict):
         return generate_random_mutation()
 
-    # Score each mutation tag by win rate
     scored = {}
-    for tag, stats in memory.items():
-        if isinstance(stats, dict) and stats.get("total", 0) > 0:
-            scored[tag] = stats["wins"] / stats["total"]
+    
+    # Try to detect format
+    # Old format: {"key:val": {"wins": 1, "total": 2}}
+    # New format: {"key": [{"value": "val", "avg_score": 0.8, "confidence": 1}]}
+    
+    is_new_format = any(isinstance(v, list) for v in memory.values())
 
-    if not scored:
-        return generate_random_mutation()
+    if is_new_format:
+        # Pick top values for each category that has data
+        mutation = {}
+        for category, options in memory.items():
+            if isinstance(options, list) and len(options) > 0:
+                # Sort by avg_score
+                best = max(options, key=lambda x: x.get("avg_score", 0))
+                if best.get("avg_score", 0) > 0.5: # Only if it's "good"
+                    mutation[category] = best["value"]
+        
+        if mutation:
+            # Randomly pick 1-2 from the good ones to avoid being too rigid
+            keys = list(mutation.keys())
+            num = min(len(keys), random.choice([1, 2]))
+            selected_keys = random.sample(keys, num)
+            return {k: mutation[k] for k in selected_keys}
+    else:
+        # Old format logic
+        for tag, stats in memory.items():
+            if isinstance(stats, dict) and stats.get("total", 0) > 0:
+                scored[tag] = stats["wins"] / stats["total"]
 
-    # Sort by win rate, pick top tags
-    sorted_tags = sorted(scored.items(), key=lambda x: x[1], reverse=True)
+        if not scored:
+            return generate_random_mutation()
 
-    mutation = {}
-    used_keys = set()
+        # Sort by win rate, pick top tags
+        sorted_tags = sorted(scored.items(), key=lambda x: x[1], reverse=True)
 
-    for tag, rate in sorted_tags[:2]:  # Pick top 2 winning mutations
-        key, val = tag.split(":", 1)
-        if key in CRIBS_PARAMS and key not in used_keys:
-            mutation[key] = val
-            used_keys.add(key)
+        mutation = {}
+        used_keys = set()
+
+        for tag, rate in sorted_tags[:2]:  # Pick top 2 winning mutations
+            try:
+                key, val = tag.split(":", 1)
+                if key in CRIBS_PARAMS and key not in used_keys:
+                    mutation[key] = val
+                    used_keys.add(key)
+            except ValueError:
+                continue
 
     # If we couldn't fill from memory, add a random one
     if not mutation:
