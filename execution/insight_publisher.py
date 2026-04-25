@@ -31,20 +31,34 @@ def extract_threads_post(content: str) -> str:
         insight = match.group(1).strip()
         # Fallback: Let Groq write a thread post based on the insight
         voice = load_voice_profile()
-        voice_str = json.dumps(voice, indent=2)
+        pronouns = voice.get('pronouns', ['gue', 'lo'])
+        exemplars = voice.get('exemplar_hooks', [])
+        exemplar_str = exemplars[0] if exemplars else ""
+        forbidden = voice.get('forbidden_words', [])
         
-        prompt = f"""You are a tech/AI thought leader on Threads. 
+        prompt = f"""You are a tech/AI thought leader on Threads for {voice.get('threads_handle', '@m.fauzan.aziz')}. 
 Write an engaging Threads post based on this insight:
 {insight}
 
+LANGUAGE RULE (WAJIB / MANDATORY):
+- Tulis SELURUHNYA dalam Bahasa Indonesia percakapan (conversational Indonesian).
+- Gunakan pronoun "{pronouns[0]}" dan "{pronouns[1]}" secara natural.
+- Boleh pakai istilah English untuk tech terms (contoh: AI, machine learning, automation).
+- JANGAN tulis dalam bahasa Inggris. Jika output dalam English, itu GAGAL.
+
+CONTOH GAYA PENULISAN:
+"{exemplar_str}"
+
 VOICE CONSTRAINTS:
-{voice_str}
+- Persona: {voice.get('persona', 'The Relatable Intellectual')}
+- Style: {', '.join(voice.get('style_markers', []))}
+- Forbidden words: {', '.join(forbidden)}
 
 STRICT PLATFORM RULES:
-1. Write in conversational Indonesian (Bahasa Indonesia) using pronouns like "gue/lo" as specified in the voice profile.
+1. The post MUST be in Indonesian (Bahasa Indonesia). English output = FAILED.
 2. Make it sound natural, human, and straight to the point. No hashtags. No generic intro.
 3. You have up to 500 characters. Provide a detailed, high-value post, but it MUST be strictly UNDER 500 characters.
-4. Do not use AI-isms.
+4. Do not use AI-isms (like 'essentially', 'in conclusion', 'landscape', 'delve into').
 
 Return ONLY a valid JSON object with a single key "post" containing your written post in Indonesian.
 """

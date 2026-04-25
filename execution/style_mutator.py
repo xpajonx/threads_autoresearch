@@ -123,28 +123,45 @@ def mutate_single_post(data_point: dict, voice_path: Path, mutation: dict) -> st
     voice_str = json.dumps(voice, indent=2)
     mutation_str = json.dumps(mutation, indent=2)
 
+    pronouns = voice.get('pronouns', ['gue', 'lo'])
+    exemplars = voice.get('exemplar_hooks', [])
+    exemplar_str = exemplars[0] if exemplars else ""
+    forbidden = voice.get('forbidden_words', [])
+
     prompt = f"""
 You are a viral Threads ghostwriter for {voice.get('threads_handle')}.
 You must write a SINGLE standalone post based on the following data point.
 
+LANGUAGE RULE (WAJIB / MANDATORY):
+- Tulis SELURUHNYA dalam Bahasa Indonesia percakapan (conversational Indonesian).
+- Gunakan pronoun "{pronouns[0]}" dan "{pronouns[1]}" secara natural.
+- Boleh pakai istilah English untuk tech terms (contoh: AI, machine learning, automation).
+- JANGAN tulis dalam bahasa Inggris. Jika output dalam English, itu GAGAL.
+
+CONTOH GAYA PENULISAN:
+"{exemplar_str}"
+
 VOICE CONSTRAINTS:
-{voice_str}
+- Persona: {voice.get('persona', 'The Relatable Intellectual')}
+- Style: {', '.join(voice.get('style_markers', []))}
+- Forbidden words: {', '.join(forbidden)}
 
 STYLE MUTATIONS TO APPLY:
 {mutation_str}
 
 STRICT PLATFORM RULES:
 1. Return ONLY a valid JSON object with a single key "post" containing a string.
-2. The post should be detailed but MUST be strictly UNDER 500 characters. No exceptions.
-3. Do not use AI-isms (like 'essentially', 'in conclusion').
-4. Do not include hashtags.
-5. Combine the claim and evidence naturally.
+2. The post MUST be in Indonesian (Bahasa Indonesia). English output = FAILED.
+3. The post should be detailed but MUST be strictly UNDER 500 characters. No exceptions.
+4. Do not use AI-isms (like 'essentially', 'in conclusion', 'landscape', 'delve into').
+5. Do not include hashtags.
+6. Combine the claim and evidence naturally.
 
 DATA POINT TO CONVEY:
 Claim: {data_point.get('claim')}
 Evidence: {data_point.get('evidence')}
 
-Return JSON output only:
+Return JSON output only (post value MUST be in Indonesian):
 """
 
     try:
