@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 # Load environment
 base_dir = Path(__file__).parent.parent
-load_dotenv(base_dir / ".env")
+load_dotenv(base_dir / ".env", override=True)
 
 # --- Config Class ---
 class Config:
@@ -27,6 +27,7 @@ class Config:
         self.BUFFER_PROFILE_ID = os.getenv("BUFFER_PROFILE_ID")
         self.BUFFER_ORG_ID = os.getenv("BUFFER_ORG_ID")
         self.TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+        self.APIFY_API_TOKEN = os.getenv("APIFY_API_TOKEN")
         
         self.THREADS_HANDLE = os.getenv("THREADS_HANDLE", "m.fauzan.aziz")
         self.MAX_VARIANTS_PER_DAY = int(os.getenv("MAX_VARIANTS_PER_DAY", "10"))

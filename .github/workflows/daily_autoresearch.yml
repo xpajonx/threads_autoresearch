@@ -27,6 +27,7 @@ env:
   MAX_VARIANTS_PER_DAY: '10'
   GDRIVE_INPUT_FOLDER_ID: ${{ secrets.GDRIVE_INPUT_FOLDER_ID }}
   GDRIVE_OUTPUT_FOLDER_ID: ${{ secrets.GDRIVE_OUTPUT_FOLDER_ID }}
+  APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
 
 jobs:
   autoresearch:
@@ -41,7 +42,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests python-dotenv google-api-python-client google-auth-httplib2 google-auth-oauthlib "scrapling[all]>=0.4.3"
+          pip install requests python-dotenv google-api-python-client google-auth-httplib2 google-auth-oauthlib apify-client "scrapling[all]>=0.4.3"
           scrapling install --force
 
       - name: Create credentials and token
