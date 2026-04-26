@@ -16,6 +16,7 @@ from difflib import SequenceMatcher
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from execution.config import configs
+from execution.drive_sync import DriveSync
 
 
 def scrape_threads_profile(handle: str) -> list[dict]:
@@ -265,9 +266,19 @@ def update_memory_from_engagement(scraped_posts: list[dict], results: list[dict]
     return memory
 
 
-def run_feedback():
+def run_feedback(use_drive: bool = False):
     """Main feedback loop: scrape -> match -> update memory."""
     handle = configs.THREADS_HANDLE or "m.fauzan.aziz"
+    
+    drive = None
+    if use_drive:
+        print("Initializing Google Drive Sync for Feedback...")
+        drive = DriveSync()
+        # Sync results.tsv and mutation_memory.json from drive to local configs.DATA_DIR
+        for filename in ["results.tsv", "mutation_memory.json"]:
+            file_id = drive.find_file(filename, drive.output_folder_id)
+            if file_id:
+                drive.download_file(file_id, str(configs.DATA_DIR / filename))
 
     # 1. Scrape
     scraped = scrape_threads_profile(handle)
@@ -290,10 +301,18 @@ def run_feedback():
     # 4. Update
     memory = update_memory_from_engagement(scraped, results, memory)
 
-    # 5. Save
+    # 5. Save locally
     save_mutation_memory(memory)
     save_results_tsv(results)
-    print(f"\nMutation memory updated. {len(memory)} mutation tags tracked.")
+    print(f"\nMutation memory updated locally. {len(memory)} mutation tags tracked.")
+
+    # Sync back to Drive
+    if use_drive:
+        print("Syncing updated analytics to Google Drive...")
+        drive.sync_outputs([
+            str(configs.DATA_DIR / "results.tsv"),
+            str(configs.DATA_DIR / "mutation_memory.json")
+        ])
 
     # 6. Print leaderboard
     if memory:
@@ -310,10 +329,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--feedback", action="store_true", help="Run the feedback loop")
+    parser.add_argument("--use-drive", action="store_true", help="Use Google Drive for I/O")
     args = parser.parse_args()
 
     if args.feedback:
-        run_feedback()
+        run_feedback(args.use_drive)
     else:
         # Just scrape and print
         handle = configs.THREADS_HANDLE or "m.fauzan.aziz"

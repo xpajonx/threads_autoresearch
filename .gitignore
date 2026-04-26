@@ -2,3 +2,8 @@
 .tmp/
 __pycache__/
 *.pyc
+credentials.json
+token.json
+AI_Automation_Data/results.tsv
+AI_Automation_Data/mutation_memory.json
+AI_Automation_Data/topics_queue.json
