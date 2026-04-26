@@ -45,6 +45,7 @@ def get_threads_analytics_via_apify(handle: str) -> list[dict]:
                 replies = int(item.get("reply_count", 0))
                 reposts = int(item.get("repost_count", 0))
                 quotes = int(item.get("quote_count", 0))
+                views = int(item.get("view_count", 0))
                 
                 post = {
                     "pk": str(item.get("id", item.get("url", ""))),
@@ -53,8 +54,9 @@ def get_threads_analytics_via_apify(handle: str) -> list[dict]:
                     "replies": replies,
                     "reposts": reposts,
                     "quotes": quotes,
+                    "views": views,
                 }
-                post["engagement"] = likes + replies + reposts + quotes
+                post["engagement"] = likes + replies + reposts + quotes + views
                 results.append(post)
                 
         print(f"Retrieved {len(results)} posts from Apify.")
