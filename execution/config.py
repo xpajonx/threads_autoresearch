@@ -14,13 +14,25 @@ class Config:
         self.TMP_DIR = base_dir / ".tmp"
         
         res_dir = os.getenv("OBSIDIAN_RESEARCH_DIR", r"D:\Pribadi\Obsidian\Writing\Research")
-        self.OBSIDIAN_RESEARCH_DIR = Path(res_dir) if Path(res_dir).is_absolute() else base_dir / res_dir
+        
+        # Robust path handling for mixed OS (e.g. Windows paths in Linux CI)
+        if ":" in res_dir and os.name != 'nt':
+            # Likely a Windows path on Linux, fallback to relative Research dir
+            self.OBSIDIAN_RESEARCH_DIR = base_dir / "Research"
+        else:
+            p = Path(res_dir)
+            self.OBSIDIAN_RESEARCH_DIR = p if p.is_absolute() else base_dir / res_dir
         
         data_dir = os.getenv("DATA_DIR")
         if data_dir:
-            self.DATA_DIR = Path(data_dir) if Path(data_dir).is_absolute() else base_dir / data_dir
+            p_data = Path(data_dir)
+            self.DATA_DIR = p_data if p_data.is_absolute() else base_dir / data_dir
         else:
-            self.DATA_DIR = self.OBSIDIAN_RESEARCH_DIR.parent / "AI_Automation_Data"
+            # If Research dir is weird or doesn't exist, ensure Data dir is at least in base_dir
+            if not self.OBSIDIAN_RESEARCH_DIR.parent.exists() and os.name != 'nt':
+                 self.DATA_DIR = base_dir / "AI_Automation_Data"
+            else:
+                 self.DATA_DIR = self.OBSIDIAN_RESEARCH_DIR.parent / "AI_Automation_Data"
         
         self.GROQ_API_KEY = os.getenv("GROQ_API_KEY")
         self.BUFFER_ACCESS_TOKEN = os.getenv("BUFFER_ACCESS_TOKEN")

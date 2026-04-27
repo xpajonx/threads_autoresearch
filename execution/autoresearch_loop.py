@@ -56,9 +56,8 @@ def get_next_topic(drive: DriveSync = None) -> tuple[str | None, bool]:
             drive.download_file(queue_id, str(queue_path))
 
     if not research_dir.exists():
-        print(f"Research dir not found: {research_dir}")
-        return None, False
-
+        print(f"Warning: Research dir not found: {research_dir}. Skipping local sync.")
+    
     # Load or init queue
     if queue_path.exists():
         try:
@@ -71,6 +70,7 @@ def get_next_topic(drive: DriveSync = None) -> tuple[str | None, bool]:
             print(f"Error loading {queue_path}: {e}. Resetting.")
             data = {"queue": []}
     else:
+        # If no queue and no research dir and no drive, we'll eventually return None
         data = {"queue": []}
 
     # 1. Sync: Check for new folders in Research dir
