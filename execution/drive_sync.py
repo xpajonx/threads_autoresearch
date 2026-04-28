@@ -119,13 +119,22 @@ class DriveSync:
 
         # Dossier mode: topic can be a simple name or a path (e.g., 'AI_Insights/Topic_A')
         print(f"Resolving dossier folder: {topic}")
-        topic_folder_id = self.find_path(topic, self.input_folder_id)
+        resolved_id = self.find_path(topic, self.input_folder_id)
         
-        if not topic_folder_id:
-            print(f"Subfolder for topic '{topic}' not found in input folder.")
+        if not resolved_id:
+            print(f"Subfolder or file for topic '{topic}' not found in input folder.")
             return {}
 
-        # 2. Find files in topic subfolder
+        # Handle case where topic path already points to Source_of_Truth.md
+        if topic.endswith("Source_of_Truth.md"):
+            local_sot = configs.TMP_DIR / "Source_of_Truth.md"
+            print(f"Topic points directly to Source_of_Truth.md. Downloading...")
+            self.download_file(resolved_id, str(local_sot))
+            paths['sot'] = local_sot
+            return paths
+
+        # Standard Dossier: Resolved ID is a folder, look for Source_of_Truth.md inside
+        topic_folder_id = resolved_id
         sot_name = "Source_of_Truth.md"
         essay_pattern = f"Essay_{topic.split('/')[-1]}_Threads.md"
         
