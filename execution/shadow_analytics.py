@@ -37,27 +37,26 @@ def get_threads_analytics_via_apify(handle: str) -> list[dict]:
         results = []
         # Fetch results from the run's dataset
         for item in client.dataset(run['defaultDatasetId']).iterate_items():
-            # Check if item is a post (george's actor uses like_count, reply_count, repost_count, quote_count)
-            text = item.get("text", "")
-            # Only process if it has text or engagement
-            if text or 'like_count' in item or 'reply_count' in item:
-                likes = int(item.get("like_count", 0))
-                replies = int(item.get("reply_count", 0))
-                reposts = int(item.get("repost_count", 0))
-                quotes = int(item.get("quote_count", 0))
-                views = int(item.get("view_count", 0))
-                
-                post = {
-                    "pk": str(item.get("id", item.get("url", ""))),
-                    "text": text[:200],
-                    "likes": likes,
-                    "replies": replies,
-                    "reposts": reposts,
-                    "quotes": quotes,
-                    "views": views,
-                }
-                post["engagement"] = likes + replies + reposts + quotes + views
-                results.append(post)
+            # Actor uses 'type' to distinguish 'profile' and 'post'
+            if item.get("type") != "post":
+                continue
+
+            text = item.get("postText", "")
+            likes = int(item.get("likeCount", 0))
+            replies = int(item.get("replyCount", 0))
+            reposts = int(item.get("repostCount", 0))
+            
+            post = {
+                "pk": str(item.get("id", item.get("postUrl", ""))),
+                "text": text[:200],
+                "likes": likes,
+                "replies": replies,
+                "reposts": reposts,
+                "quotes": 0, # Not provided by this actor
+                "views": 0,  # Not provided by this actor
+            }
+            post["engagement"] = likes + replies + reposts
+            results.append(post)
                 
         print(f"Retrieved {len(results)} posts from Apify.")
         return results

@@ -84,8 +84,37 @@ class DriveSync:
             ).execute()
             return file.get('id')
 
+    def find_path(self, path, root_id):
+        """Resolve a path like 'Folder/Subfolder/File.md' in Drive."""
+        parts = path.replace('\\', '/').split('/')
+        current_id = root_id
+        for part in parts:
+            if not part: continue
+            current_id = self.find_file(part, current_id)
+            if not current_id:
+                return None
+        return current_id
+
     def sync_inputs(self, topic):
         """Download Source_of_Truth.md and Essay_*.md for the topic."""
+        paths = {}
+        
+        if topic.startswith("FILE:"):
+            # Direct file mode: The topic is a path to a specific markdown file
+            file_path = topic.replace("FILE:", "")
+            file_id = self.find_path(file_path, self.input_folder_id)
+            
+            if not file_id:
+                print(f"File path '{file_path}' not found in input folder.")
+                return {}
+            
+            # For direct files, we treat the file itself as Source_of_Truth.md
+            local_sot = configs.TMP_DIR / "Source_of_Truth.md"
+            self.download_file(file_id, str(local_sot))
+            paths['sot'] = local_sot
+            return paths
+
+        # Dossier mode: topic is a folder containing Source_of_Truth.md
         # 1. Find topic subfolder
         topic_folder_id = self.find_file(topic, self.input_folder_id)
         if not topic_folder_id:
@@ -99,7 +128,6 @@ class DriveSync:
         sot_id = self.find_file(sot_name, topic_folder_id)
         essay_id = self.find_file(essay_pattern, topic_folder_id)
         
-        paths = {}
         if sot_id:
             local_sot = configs.TMP_DIR / sot_name
             self.download_file(sot_id, str(local_sot))
