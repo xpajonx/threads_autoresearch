@@ -102,7 +102,7 @@ class DriveSync:
         paths = {}
         
         if topic.startswith("FILE:"):
-            # Direct file mode: The topic is a path to a specific markdown file
+            # Direct file mode
             file_path = topic.replace("FILE:", "")
             print(f"Resolving direct file path: {file_path}")
             file_id = self.find_path(file_path, self.input_folder_id)
@@ -111,29 +111,30 @@ class DriveSync:
                 print(f"File path '{file_path}' not found in input folder.")
                 return {}
             
-            # For direct files, we treat the file itself as Source_of_Truth.md
             local_sot = configs.TMP_DIR / "Source_of_Truth.md"
             print(f"Downloading {file_path} to {local_sot}...")
             self.download_file(file_id, str(local_sot))
             paths['sot'] = local_sot
             return paths
 
-        # Dossier mode: topic is a folder containing Source_of_Truth.md
-        # 1. Find topic subfolder
-        topic_folder_id = self.find_file(topic, self.input_folder_id)
+        # Dossier mode: topic can be a simple name or a path (e.g., 'AI_Insights/Topic_A')
+        print(f"Resolving dossier folder: {topic}")
+        topic_folder_id = self.find_path(topic, self.input_folder_id)
+        
         if not topic_folder_id:
             print(f"Subfolder for topic '{topic}' not found in input folder.")
             return {}
 
         # 2. Find files in topic subfolder
         sot_name = "Source_of_Truth.md"
-        essay_pattern = f"Essay_{topic}_Threads.md"
+        essay_pattern = f"Essay_{topic.split('/')[-1]}_Threads.md"
         
         sot_id = self.find_file(sot_name, topic_folder_id)
         essay_id = self.find_file(essay_pattern, topic_folder_id)
         
         if sot_id:
             local_sot = configs.TMP_DIR / sot_name
+            print(f"Downloading {sot_name} from {topic}...")
             self.download_file(sot_id, str(local_sot))
             paths['sot'] = local_sot
             
