@@ -82,7 +82,7 @@ def get_next_topic(drive: DriveSync = None) -> tuple[str | None, bool]:
         for d in sorted(research_dir.iterdir()):
             if not d.is_dir() or not (d / "Source_of_Truth.md").exists():
                 continue
-            if d.name == "AI_Insights" or d.name.startswith("."):
+            if d.name.startswith("."):
                 continue
             if d.name not in existing_topics:
                 print(f"New topic found in Research: {d.name}")

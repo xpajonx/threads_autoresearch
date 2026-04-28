@@ -33,15 +33,24 @@ def parse_source_of_truth(topic_dir: Path):
     lines = content.splitlines()
     current_claim = ""
     current_evidence = ""
+    
+    # Improved regex: handles optional leading symbols (-, *), bolding (**), and separators (:, -)
+    claim_regex = r"^\s*[\-\*]?\s*\**Klaim\**\s*[:\-]?\s*"
+    evidence_regex = r"^\s*[\-\*]?\s*\**Bukti\**\s*[:\-]?\s*"
+
     for line in lines:
         line_clean = line.strip()
         if not line_clean: continue
-        if re.search(r"Klaim", line_clean, re.IGNORECASE) and (":" in line_clean or "**" in line_clean):
-            parts = re.split(r"Klaim\**\s*[:\-]?\s*", line_clean, maxsplit=1, flags=re.IGNORECASE)
-            if len(parts) > 1: current_claim = parts[1].strip()
-        elif re.search(r"Bukti", line_clean, re.IGNORECASE) and (":" in line_clean or "**" in line_clean):
-            parts = re.split(r"Bukti\**\s*[:\-]?\s*", line_clean, maxsplit=1, flags=re.IGNORECASE)
-            if len(parts) > 1: current_evidence = parts[1].strip()
+        
+        if re.search(claim_regex, line_clean, re.IGNORECASE):
+            parts = re.split(claim_regex, line_clean, maxsplit=1, flags=re.IGNORECASE)
+            if len(parts) > 1: 
+                current_claim = parts[1].strip().strip("*").strip()
+        elif re.search(evidence_regex, line_clean, re.IGNORECASE):
+            parts = re.split(evidence_regex, line_clean, maxsplit=1, flags=re.IGNORECASE)
+            if len(parts) > 1: 
+                current_evidence = parts[1].strip().strip("*").strip()
+        
         if current_claim and current_evidence:
             data_points.append({"claim": current_claim, "evidence": current_evidence})
             current_claim = ""; current_evidence = ""

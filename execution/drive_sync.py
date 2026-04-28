@@ -90,8 +90,10 @@ class DriveSync:
         current_id = root_id
         for part in parts:
             if not part: continue
+            print(f"  Searching for '{part}' in folder {current_id}...")
             current_id = self.find_file(part, current_id)
             if not current_id:
+                print(f"  [DEBUG] Failed to find '{part}'")
                 return None
         return current_id
 
@@ -102,6 +104,7 @@ class DriveSync:
         if topic.startswith("FILE:"):
             # Direct file mode: The topic is a path to a specific markdown file
             file_path = topic.replace("FILE:", "")
+            print(f"Resolving direct file path: {file_path}")
             file_id = self.find_path(file_path, self.input_folder_id)
             
             if not file_id:
@@ -110,6 +113,7 @@ class DriveSync:
             
             # For direct files, we treat the file itself as Source_of_Truth.md
             local_sot = configs.TMP_DIR / "Source_of_Truth.md"
+            print(f"Downloading {file_path} to {local_sot}...")
             self.download_file(file_id, str(local_sot))
             paths['sot'] = local_sot
             return paths
