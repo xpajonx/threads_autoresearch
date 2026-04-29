@@ -91,10 +91,14 @@ class DriveSync:
         for part in parts:
             if not part: continue
             print(f"  Searching for '{part}' in folder {current_id}...")
-            current_id = self.find_file(part, current_id)
-            if not current_id:
-                print(f"  [DEBUG] Failed to find '{part}'")
+            next_id = self.find_file(part, current_id)
+            if not next_id and not part.endswith('.md'):
+                print(f"  [DEBUG] Failed to find '{part}', trying with '.md'...")
+                next_id = self.find_file(part + '.md', current_id)
+            if not next_id:
+                print(f"  [DEBUG] Failed to find '{part}' or '{part}.md'")
                 return None
+            current_id = next_id
         return current_id
 
     def sync_inputs(self, topic):
@@ -126,9 +130,9 @@ class DriveSync:
             return {}
 
         # Handle case where topic path already points to Source_of_Truth.md
-        if topic.endswith("Source_of_Truth.md"):
+        if topic.endswith("Source_of_Truth.md") or topic.endswith("Source_of_Truth"):
             local_sot = configs.TMP_DIR / "Source_of_Truth.md"
-            print(f"Topic points directly to Source_of_Truth.md. Downloading...")
+            print(f"Topic points directly to Source_of_Truth. Downloading...")
             self.download_file(resolved_id, str(local_sot))
             paths['sot'] = local_sot
             return paths
